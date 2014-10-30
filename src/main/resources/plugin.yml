@@ -1,0 +1,8 @@
+name: Freunde
+version: 0.2
+author: ersterstreber
+main: de.ersterstreber.freunde.Freunde
+commands:
+     freunde:
+          description: Der Freunde-Command
+          aliases: [f, friends]
