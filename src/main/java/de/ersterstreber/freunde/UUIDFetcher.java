@@ -1,3 +1,6 @@
+//Thanks to evilmidget38 for coding this class! Nice one!
+//Class copied from here: https://forums.bukkit.org/threads/player-name-uuid-fetcher.250926/
+//Credits go to evilmidget38
 package de.ersterstreber.freunde;
  
 import com.google.common.collect.ImmutableList;
