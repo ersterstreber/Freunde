@@ -73,6 +73,30 @@ public class FreundeCommand implements CommandExecutor {
 					return true;
 				}
 			}
+			if (args.length == 2) {
+				if (args[0].equalsIgnoreCase("spectate")) {
+					Player toSpectate = Bukkit.getPlayer(args[1]);
+					if (toSpectate != null) {
+						Freunde.invitationSpectating(p, toSpectate);
+						return true;
+					} else {
+						p.sendMessage("§6" + args[1] + " §cist nicht online!");
+						return true;
+					}
+				}
+			}
+			if (args.length == 2) {
+				if (args[0].equalsIgnoreCase("s") && args[1].equalsIgnoreCase("accept")) {
+					Freunde.acceptSpectating(p);
+					return true;
+				}
+			}
+			if (args.length == 2) {
+				if (args[0].equalsIgnoreCase("s") && args[1].equalsIgnoreCase("deny")) {
+					Freunde.denySpectating(p);
+					return true;
+				}
+			}
 			p.sendMessage("§cIch kenne diesen Command nicht!\nÜberprüfe bitte, ob du ihn richtig geschrieben hast!");
 			return true;
 		}

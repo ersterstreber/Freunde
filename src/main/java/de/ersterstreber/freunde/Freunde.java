@@ -6,18 +6,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Pig;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import de.ersterstreber.freunde.command.FreundeCommand;
 import de.ersterstreber.freunde.listeners.AsyncPlayerChatListener;
 import de.ersterstreber.freunde.listeners.PlayerJoinListener;
 import de.ersterstreber.freunde.listeners.PlayerQuitListener;
+import de.ersterstreber.freunde.listeners.VehicleExitListener;
 
 public class Freunde extends JavaPlugin {
 
@@ -27,12 +34,18 @@ public class Freunde extends JavaPlugin {
 	private static File f;
 	
 	public static Map<UUID, UUID> invitations;
+	public static Map<String, Pig> spectators;
+	public static Map<String, String> spectatorinvitations;
+	public static Map<String, Location> locations;
 	
 	@Override
 	public void onEnable() {
 		freunde = this;
 		
 		invitations = new HashMap<UUID, UUID>();
+		spectators = new HashMap<String, Pig>();
+		locations = new HashMap<String, Location>();
+		spectatorinvitations = new HashMap<String, String>();
 		
 		f = new File("plugins/Freunde", "freunde.yml");
 		config = YamlConfiguration.loadConfiguration(f);
@@ -40,6 +53,7 @@ public class Freunde extends JavaPlugin {
 		Bukkit.getPluginManager().registerEvents(new AsyncPlayerChatListener(), this);
 		Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(), this);
 		Bukkit.getPluginManager().registerEvents(new PlayerQuitListener(), this);
+		Bukkit.getPluginManager().registerEvents(new VehicleExitListener(), this);
 		
 		getCommand("freunde").setExecutor(new FreundeCommand());
 	}
@@ -177,6 +191,78 @@ public class Freunde extends JavaPlugin {
 		}
 	}
 	
+	public static void invitationSpectating(final Player p1, final Player p2) {
+		if (spectators.containsValue(p1.getUniqueId())) {
+			p1.sendMessage("§cDieser Spieler wird bereits spectatet!");
+			return;
+		}
+		spectatorinvitations.put(p1.getName(), p2.getName());
+		p1.sendMessage("§6Anfrage versendet.");
+		p1.sendMessage("§6Die Anfrage läuft in 30 Sekunden ab.");
+		
+		p2.sendMessage("§6" + p1.getName() + " §fmöchte dich spectaten!");
+		p2.sendMessage("§6/f s accept §f- Annehmen");
+		p2.sendMessage("§6/f s deny §f- Ablehnen");
+		
+		new BukkitRunnable() {
+				
+			public void run() {
+				for (Entry<String, String> it : spectatorinvitations.entrySet()) {
+					if (it.getKey().equals(p1.getUniqueId()) && it.getValue().equals(p2.getUniqueId())) {
+						spectatorinvitations.remove(p1.getUniqueId());
+					}
+				}
+			}
+		}.runTaskLater(instance(), 30 * 20L);
+	}
+	
+	@SuppressWarnings("deprecation")
+	public static void acceptSpectating(Player p) {
+		if (spectatorinvitations.containsValue(p.getName())) {
+			String u = null;
+			for (Entry<String, String> it : spectatorinvitations.entrySet()) {
+				if (it.getValue().equals(p.getUniqueId())) u = it.getKey();
+			}
+			Player p2 = Bukkit.getPlayer(u);
+			if (p2 != null) {
+				spectatorinvitations.remove(p2.getName());
+				p.sendMessage("§2Anfrage angenommen!");
+				p2.sendMessage("§6" + p.getName() + " §2hat deine Anfrage angenommen!");
+				spectate(p2, p);
+				return;
+			} else {
+				p.sendMessage("§c" + Bukkit.getOfflinePlayer(u).getName() + " §2ist nicht mehr online!");
+				return;
+			}
+		} else {
+			p.sendMessage("§cDu hast keine ausstehende Spectationanfrage.");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("deprecation")
+	public static void denySpectating(Player p) {
+		if (spectatorinvitations.containsValue(p.getName())) {
+			String u = null;
+			for (Entry<String, String> it : spectatorinvitations.entrySet()) {
+				if (it.getValue().equals(p.getUniqueId())) u = it.getKey();
+			}
+			Player p2 = Bukkit.getPlayer(u);
+			if (p2 != null) {
+				spectatorinvitations.remove(p2.getName());
+				p.sendMessage("§cAnfrage abgelehnt!");
+				p2.sendMessage("§6" + p.getName() + " §chat deine Anfrage abgelehnt!");
+				return;
+			} else {
+				p.sendMessage("§c" + Bukkit.getOfflinePlayer(u).getName() + " §2ist nicht mehr online!");
+				return;
+			}
+		} else {
+			p.sendMessage("§cDu hast keine ausstehende Spectationanfrage.");
+			return;
+		}
+	}
+	
 	public static List<UUID> friends(UUID u) {
 		List<String> uuid = config.getStringList("freunde." + u);
 		List<UUID> toReturn = new ArrayList<UUID>();
@@ -215,8 +301,38 @@ public class Freunde extends JavaPlugin {
 		p.sendMessage("§6/f deny §f- Lehnt eine Abfrage ab");
 		p.sendMessage("§6/f remove <Spieler> §f- Entfernt einen Spieler von deiner Freundesliste");
 		p.sendMessage("§6/f list §f- Zeigt dir deine Freunde an");
+		p.sendMessage("§6/f spectate <Spieler> §f- Spectatet einen Spieler");
 		p.sendMessage("§6Freunde-Chat: §fNachricht mit einem # beginnen");
 		
+	}
+	
+	public static void spectate(Player spectator, Player toSpectate) {
+		if (isFriend(spectator.getUniqueId(), toSpectate.getUniqueId())) {
+			if (toSpectate != null) {
+				if (!spectators.containsValue(toSpectate.getName())) {
+					if (!spectators.containsKey(spectator.getName())) {
+						locations.put(spectator.getName(), spectator.getLocation());
+						spectator.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0));
+						Pig pig = (Pig) toSpectate.getWorld().spawnEntity(toSpectate.getLocation(), EntityType.PIG);
+						pig.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0));
+						toSpectate.setPassenger(pig);
+						pig.setPassenger(spectator);
+						spectator.sendMessage("§2Du spectatest nun §6" + toSpectate.getName());
+						spectators.put(spectator.getName(), pig);
+						return;
+					} else {
+						spectator.sendMessage("§cDu spectatest bereits jemanden!");
+						return;
+					}
+				} else {
+					spectator.sendMessage("§6" + toSpectate.getName() + " §cwird bereits spectatet!");
+					return;
+				}
+			}
+		} else {
+			spectator.sendMessage("§6" + toSpectate.getName() + " §cist nicht dein Freund!");
+			return;
+		}
 	}
 	
 }
